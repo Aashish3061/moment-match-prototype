@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Moment Match Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Console layout: controls strip, article on the left, slot inspector on the right, experiment readout below */
+  --bg:#f3f5f7; --surface:#ffffff; --ink:#131820; --muted:#596270; --line:#dbe0e6;
+  --accent:#0d6b6b; --accent-soft:#e2f1f0; --today:#7a8391; --today-soft:#eef0f3;
+  --good:#1b7a3a; --good-soft:#e3f3e8; --warn:#9a6a10; --warn-soft:#fbf0d9; --bad:#b42f2f; --bad-soft:#fbe6e6;
+  --font-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --font-read:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --radius:10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1216; --surface:#161b21; --ink:#e7eaee; --muted:#9aa4b0; --line:#2a313a;
+    --accent:#45bcb3; --accent-soft:#13302f; --today:#8c95a2; --today-soft:#1d232a;
+    --good:#4cc07a; --good-soft:#123222; --warn:#e0b053; --warn-soft:#33270f; --bad:#ef7a7a; --bad-soft:#3a1717;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1216; --surface:#161b21; --ink:#e7eaee; --muted:#9aa4b0; --line:#2a313a;
+  --accent:#45bcb3; --accent-soft:#13302f; --today:#8c95a2; --today-soft:#1d232a;
+  --good:#4cc07a; --good-soft:#123222; --warn:#e0b053; --warn-soft:#33270f; --bad:#ef7a7a; --bad-soft:#3a1717;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 var(--font-body)}
+h1,h2,h3{text-wrap:balance;margin:0}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1320px;margin:0 auto;padding:16px 20px 40px;display:grid;gap:16px}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.pill{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:500;white-space:nowrap}
+.pill.good{background:var(--good-soft);color:var(--good)} .pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.bad{background:var(--bad-soft);color:var(--bad)} .pill.acc{background:var(--accent-soft);color:var(--accent)}
+.pill.flat{background:var(--today-soft);color:var(--muted)}
+.tag{font-size:11px;font-weight:600;letter-spacing:.02em;padding:1px 6px;border-radius:4px;border:1px solid var(--line);color:var(--muted)}
+.tag.must{color:var(--accent);border-color:var(--accent)} .tag.should{color:var(--warn);border-color:var(--warn)} .tag.could{color:var(--muted)}
+
+header.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+header.top h1{font-size:22px;font-weight:600;letter-spacing:-.01em}
+header.top p{margin:2px 0 0;color:var(--muted);max-width:70ch}
+.seg{display:flex;flex-wrap:wrap;gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius)}
+.seg button{border:0;background:transparent;padding:6px 10px;border-radius:7px;cursor:pointer;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff;font-weight:500}
+:root[data-theme="dark"] .seg button[aria-pressed="true"]{color:#06201f}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .seg button[aria-pressed="true"]{color:#06201f}}
+.seg-label{font-size:12px;color:var(--muted);margin-bottom:4px}
+
+.controls{display:grid;grid-template-columns:1.1fr 1.6fr 1fr;gap:16px}
+.controls .card{padding:12px 14px}
+.controls h2{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--muted);text-transform:none}
+.flag{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line)}
+.flag:first-of-type{border-top:0}
+.flag label{cursor:pointer}
+.flag input[disabled]+label{cursor:default}
+.flag small{display:block;color:var(--muted);font-size:12px}
+.slider{display:grid;grid-template-columns:1fr auto;gap:2px 8px;margin-bottom:10px}
+.slider input{grid-column:1/-1;width:100%;accent-color:var(--accent)}
+.slider small{grid-column:1/-1;color:var(--muted);font-size:12px}
+select{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:3px 6px}
+
+.main{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;align-items:start}
+.article{padding:22px 26px}
+.article .kicker{font-size:12px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.article h2{font-family:var(--font-read);font-size:24px;font-weight:600;line-height:1.25;margin:8px 0 12px}
+.article p.para{font-family:var(--font-read);font-size:16px;line-height:1.65;margin:0 0 14px;max-width:68ch}
+.slot{border:1px dashed var(--line);border-radius:var(--radius);padding:10px;margin:4px 0 18px;cursor:pointer;background:transparent;width:100%;text-align:left;display:block}
+.slot:hover{border-color:var(--accent)}
+.slot[aria-pressed="true"]{border:2px solid var(--accent);padding:9px;background:var(--accent-soft)}
+.slot-head{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:12px;color:var(--muted);margin-bottom:8px}
+.slot-head b{color:var(--ink);font-weight:600}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.adcard{border-radius:8px;padding:8px 10px;border:1px solid var(--line);background:var(--surface);min-height:84px}
+.adcard .who{font-size:11px;color:var(--muted);display:flex;justify-content:space-between;gap:6px}
+.adcard .hl{font-weight:600;margin:2px 0;font-size:13.5px}
+.adcard .why{font-size:12px;color:var(--muted)}
+.adcard.today{border-left:4px solid var(--today)} .adcard.mm{border-left:4px solid var(--accent)}
+.adcard.none{display:flex;align-items:center;color:var(--muted);font-size:12.5px}
+
+.inspector{position:sticky;top:12px;padding:16px;display:grid;gap:14px;max-height:calc(100vh - 24px);overflow:auto}
+.inspector h3{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.layer{border-top:1px solid var(--line);padding-top:12px;display:grid;gap:8px}
+.kv{display:grid;grid-template-columns:110px 1fr;gap:4px 10px;font-size:13px}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+.window{font-family:var(--font-read);font-size:13px;color:var(--muted);border-left:3px solid var(--line);padding-left:10px;max-height:72px;overflow:hidden}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.toneplot{display:flex;gap:12px;align-items:center}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{text-align:left;padding:5px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:11.5px}
+td.num,th.num{text-align:right;font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+tr.win td{background:var(--accent-soft)}
+tr.out td{color:var(--muted)}
+.tbl-wrap{overflow-x:auto}
+pre{margin:0;font:12px/1.5 var(--font-mono);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto;max-height:280px}
+.copy{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:2px 8px;cursor:pointer;font-size:12px}
+.attrow{display:grid;grid-template-columns:28px 90px 38px 1fr;gap:8px;align-items:center;font-size:12px}
+.attbar{height:8px;background:var(--today-soft);border-radius:4px;overflow:hidden;display:block}
+.attbar span{display:block;height:100%;background:var(--accent)}
+.atttext{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.formula{font-family:var(--font-mono);font-size:12px;background:var(--bg);border-radius:6px;padding:6px 8px}
+
+.dash{display:grid;gap:16px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.kpi{padding:12px 14px}
+.kpi .lbl{font-size:12px;color:var(--muted)}
+.kpi .val{font-family:var(--font-mono);font-size:22px;font-weight:500;margin-top:2px}
+.kpi .sub{font-size:12px;color:var(--muted)}
+.readout{padding:16px;display:grid;gap:12px}
+.readout h2{font-size:16px;font-weight:600;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.group{border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+.group h3{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px}
+.mrow{display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
+.mrow:first-of-type{border-top:0}
+.mrow .mono{font-size:13px}
+.gate{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px}
+footer{font-size:12px;color:var(--muted);display:grid;gap:4px}
+@media (max-width:1000px){.controls{grid-template-columns:1fr}.main{grid-template-columns:1fr}.inspector{position:static;max-height:none}}
+@media (max-width:560px){.pair{grid-template-columns:1fr}.article{padding:16px}.wrap{padding:12px}}
+@media (prefers-reduced-motion:no-preference){.slot,.seg button{transition:background-color .15s,border-color .15s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Moment Match</h1>
+      <p>Slot-level contextual targeting for the Media.net ad server. Pick an article, click any ad slot, and compare today's page-level decision with Moment Match. Working prototype with fictional articles, fictional brands and simulated numbers.</p>
+    </div>
+    <div>
+      <div class="seg-label" id="stage-label">Rollout stage</div>
+      <div class="seg" role="group" aria-labelledby="stage-label" id="stages"></div>
+    </div>
+  </header>
+
+  <section class="controls" aria-label="Controls">
+    <div class="card">
+      <h2>Sample article</h2>
+      <div class="seg" role="group" aria-label="Sample article" id="articles" style="margin-bottom:10px"></div>
+      <div class="muted" style="font-size:12px">Page label sent today: <b id="pagelabel" style="color:var(--ink)"></b></div>
+    </div>
+    <div class="card">
+      <h2>Feature flags, prioritised with MoSCoW</h2>
+      <div id="flags"></div>
+    </div>
+    <div class="card">
+      <h2>Targeting logic tuning</h2>
+      <div class="slider">
+        <label for="lambda">Relevance nudge cap &lambda;</label><span class="mono" id="lambda-out"></span>
+        <input type="range" id="lambda" min="0" max="0.2" step="0.01" value="0.2">
+        <small>0 = rank on price only. 0.2 = relevance can move a score by up to 20%.</small>
+      </div>
+      <div class="slider">
+        <label for="tau">Relevance bar &tau;</label><span class="mono" id="tau-out"></span>
+        <input type="range" id="tau" min="0" max="0.8" step="0.05" value="0.4">
+        <small>Ads below &tau; (or below a 0.25 topic match) are not ranked. If none qualify, the slot falls back to today's page-level choice.</small>
+      </div>
+      <div class="slider">
+        <label for="ranker">Ranker</label><span></span>
+        <select id="ranker" style="grid-column:1/-1">
+          <option value="linear">Linear score (MVP)</option>
+          <option value="attention">Slot-target attention (phase 2, simulated)</option>
+        </select>
+        <small id="ranker-note">Phase 2: each candidate ad attends over every paragraph read so far, DIN-style.</small>
+      </div>
+      <div class="slider" style="margin-bottom:0">
+        <label for="arm">Tone experiment arm</label><span></span>
+        <select id="arm" style="grid-column:1/-1">
+          <option value="ignore">Ignore tone (control)</option>
+          <option value="match">Match slot tone</option>
+          <option value="contrast">Contrast slot tone</option>
+        </select>
+        <small id="arm-note">Turn on the Should flag "Tone experiment" to use this.</small>
+      </div>
+    </div>
+  </section>
+
+  <section class="main">
+    <article class="card article" id="article" aria-label="Sample article with ad slots"></article>
+    <aside class="card inspector" id="inspector" aria-label="Slot inspector"></aside>
+  </section>
+
+  <section class="dash">
+    <div class="kpis" id="kpis" aria-label="This page: today vs Moment Match"></div>
+    <div class="card readout" id="readout"></div>
+  </section>
+
+  <footer>
+    <div>Standards used: OpenRTB 2.6 bid request, IAB Tech Lab Content Taxonomy 3.1 IDs (cattax 9), Prebid ortb2Imp.ext.data for ad-unit data, Core Web Vitals and p99 latency as guardrails.</div>
+    <div>Frameworks used: MoSCoW for scope, Kano for layer order, North Star with input metrics and guardrails, stage gates for rollout, and a DIN-style target-attention ranker for phase 2. Articles, brands, bids and experiment results are fictional or simulated for illustration.</div>
+  </footer>
+</div>
+
+<script>
+"use strict";
+const IAB = {
+  1:"Automotive", 6:"Automotive > Auto Body Styles > SUV", 22:"Automotive > Auto Type > Green Vehicles", 31:"Automotive > Auto Insurance", 35:"Automotive > Auto Safety",
+  118:"Business and Finance > Industries > Aviation Industry", 214:"Food & Drink > World Cuisines", 218:"Food & Drink > Dining Out",
+  381:"Disasters", 396:"Personal Finance > Financial Planning", 404:"Personal Finance > Insurance > Travel Insurance", 408:"Personal Finance > Personal Debt > Personal Loans",
+  414:"Personal Finance > Personal Investing > Stocks and Bonds", 653:"Travel", 659:"Travel > Travel Locations > Europe Travel", 663:"Travel > Travel Preparation and Advice",
+  665:"Travel > Travel Type > Adventure Travel", 666:"Travel > Travel Type > Family Travel", 668:"Travel > Travel Type > Hotels and Motels", 669:"Travel > Travel Type > Rail Travel",
+  670:"Travel > Travel Type > Road Trips", 672:"Travel > Travel Type > Air Travel"
+};
+const short = id => IAB[id].split(" > ").pop();
+
+const ARTICLES = [
+ {id:"travel", tab:"Travel guide", title:"A week on Swiss trains: passes, food and where to sleep", section:"Travel", words:1480, label:653, flagged:false,
+  url:"https://example-publisher.com/travel/swiss-trains-week",
+  blocks:[
+   {p:"Switzerland's trains run so often that you can plan a whole week around them. This guide covers what to buy, what to eat between connections and where to sleep near the big stations."},
+   {p:"The Swiss Travel Pass covers trains, buses and boats for a set number of consecutive days. The Half Fare Card instead halves most fares for a month. If you plan fewer than three long journeys, point-to-point tickets with the Half Fare Card often come out cheaper.",
+    slot:{topics:[669,659], pq:"swiss travel pass vs half fare card", mindset:"comparing", tone:{v:0.3,a:0.3}, sens:[], cache:"hit"}},
+   {p:"Take the cogwheel train up to Jungfraujoch on a clear morning. At 3,454 metres the station looks out over the Aletsch Glacier, the longest in the Alps. Early trains fill fast in summer, so book a seat a day ahead.",
+    slot:{topics:[659,665], pq:"jungfraujoch train tickets", mindset:"escaping", tone:{v:0.8,a:0.7}, sens:[], cache:"hit"}},
+   {p:"Between connections, eat like a local. Station kiosks sell good Bircher muesli and sandwiches, and most old towns have a fondue restaurant a short walk from the platform. Raclette is the cheaper winter staple.",
+    slot:{topics:[214,218], pq:"fondue restaurant near station", mindset:"learning", tone:{v:0.6,a:0.4}, sens:[], cache:"miss"}},
+   {p:"Sleeping next to the main station saves time on early departures. Zurich, Lucerne and Interlaken all have hotels within five minutes of the tracks. Book refundable rates if your route might change.",
+    slot:{topics:[668,659], pq:"hotels near zurich main station", mindset:"deciding", tone:{v:0.3,a:0.3}, sens:[], cache:"hit"}},
+   {p:"Delays are rare, but they happen. If a train is cancelled, the operator's app shows the next connection and ticket-office staff can rebook you. Keep your receipts, because some travel insurance policies cover extra nights caused by missed connections.",
+    slot:{topics:[663,404], pq:"train cancelled switzerland what to do", mindset:"problem-solving", tone:{v:-0.3,a:0.5}, sens:[], cache:"hit"}}
+  ]},
+ {id:"news", tab:"Breaking news", title:"Runway incident at Port Avelar airport rattles airline stocks", section:"News", words:1260, label:672, flagged:true,
+  url:"https://example-publisher.com/news/port-avelar-runway-incident",
+  blocks:[
+   {p:"A passenger jet overran the runway at Port Avelar airport on Tuesday evening during heavy rain. Emergency crews reached the aircraft within minutes. Twelve passengers were treated for minor injuries and the airport closed for six hours."},
+   {p:"Investigators will examine the aircraft's braking data and the runway's drainage. The airline said it is cooperating fully and has not grounded any other aircraft.",
+    slot:{topics:[381,672], pq:"port avelar runway incident", mindset:"learning", tone:{v:-0.7,a:0.8}, sens:["air-incident"], cache:"hit"}},
+   {p:"Travellers booked through Port Avelar this week should check their flight status before leaving home. Most airlines are offering free rebooking, and passengers stuck overnight can claim reasonable hotel and meal costs.",
+    slot:{topics:[663,672], pq:"flight rebooking after airport closure", mindset:"problem-solving", tone:{v:-0.3,a:0.5}, sens:[], cache:"hit"}},
+   {p:"Shares in the carrier fell 4% in early trading, pulling a European airline index down 1.2%. Analysts said the drop reflects short-term uncertainty, not a change in travel demand.",
+    slot:{topics:[118,414], pq:"airline stocks outlook", mindset:"comparing", tone:{v:-0.2,a:0.4}, sens:[], cache:"hit"}},
+   {p:"For long-term investors, one incident rarely changes an airline's outlook. Advisers suggest checking how concentrated a portfolio is in one sector before reacting to a single day's price move.",
+    slot:{topics:[396,414], pq:"how to diversify a stock portfolio", mindset:"deciding", tone:{v:0.1,a:0.3}, sens:[], cache:"hit"}}
+  ]},
+ {id:"auto", tab:"Car buying", title:"Choosing a family SUV in 2026: safety, range and the real cost", section:"Autos", words:1350, label:1, flagged:false,
+  url:"https://example-publisher.com/autos/family-suv-guide-2026",
+  blocks:[
+   {p:"Family SUVs now come in petrol, hybrid and fully electric versions, often on the same body. Here is how to compare them without getting lost in brochure numbers."},
+   {p:"Start with crash-test results. Look for the latest rating, since test rules tighten every few years, and check the child-occupant score, not just the headline stars. Rear-seat airbags and automatic emergency braking matter most for families.",
+    slot:{topics:[35,6], pq:"safest family suv crash test", mindset:"learning", tone:{v:0.4,a:0.3}, sens:[], cache:"hit"}},
+   {p:"Electric range figures are measured in ideal conditions, so expect noticeably less on cold motorway trips. A plug-in hybrid with a modest electric range covers most school runs while keeping a petrol engine for holidays.",
+    slot:{topics:[22,6], pq:"electric vs plug-in hybrid suv range", mindset:"comparing", tone:{v:0.3,a:0.4}, sens:[], cache:"hit"}},
+   {p:"The real cost is more than the sticker price. Get insurance quotes before you choose a trim, compare dealer finance against a personal loan, and ask what the battery warranty covers in later years.",
+    slot:{topics:[31,408], pq:"family suv insurance quote", mindset:"deciding", tone:{v:0.1,a:0.4}, sens:[], cache:"hit"}},
+   {p:"Then picture the summer road trip. Boot space with every seat up, roof-rail weight limits and the number of charging ports decide whether a long drive with children feels easy or endless.",
+    slot:{topics:[666,670], pq:"family road trip packing", mindset:"escaping", tone:{v:0.8,a:0.6}, sens:[], cache:"hit"}}
+  ]}
+];
+
+const ADS = [
+ {id:"a1", brand:"Alpenbahn Pass Shop", hl:"Compare Swiss rail passes in 60 seconds", cat:"rail-booking", type:"cpc", bid:0.90, ctr:0.008, bl:false,
+  aff:{669:.95,659:.75,653:.6,663:.35,665:.4}, ms:{comparing:.9,deciding:.8,learning:.5,escaping:.45,"problem-solving":.3}, tone:{v:.4,a:.4}},
+ {id:"a2", brand:"Skyward Air", hl:"Fly to the Alps from 89", cat:"airline", type:"cpm", bid:9.0, ctr:0.002, bl:true,
+  aff:{672:.95,653:.7,659:.65,665:.45,666:.35,118:.3,670:.2}, ms:{escaping:.85,deciding:.7,comparing:.6,learning:.4,"problem-solving":.2}, tone:{v:.7,a:.6}},
+ {id:"a3", brand:"Peakstay Hotels", hl:"Station hotels, free cancellation", cat:"hotel", type:"cpc", bid:1.20, ctr:0.006, bl:false,
+  aff:{668:.95,653:.6,659:.6,666:.45,670:.3}, ms:{deciding:.9,comparing:.7,escaping:.6,learning:.3,"problem-solving":.4}, tone:{v:.5,a:.4}},
+ {id:"a4", brand:"Fondue Trails", hl:"Small-group food tours in old towns", cat:"food-tours", type:"cpc", bid:0.60, ctr:0.009, bl:false,
+  aff:{214:.9,218:.85,659:.4,653:.3}, ms:{learning:.7,escaping:.7,deciding:.6,comparing:.4,"problem-solving":.1}, tone:{v:.7,a:.5}},
+ {id:"a5", brand:"SafeTrip Insurance", hl:"Missed a connection? Get covered", cat:"insurance", type:"cpc", bid:1.80, ctr:0.005, bl:true,
+  aff:{404:.95,663:.85,672:.55,653:.45,666:.4}, ms:{"problem-solving":.95,deciding:.7,comparing:.6,learning:.4,escaping:.2}, tone:{v:.3,a:.2}},
+ {id:"a6", brand:"Ledgerly Investing", hl:"See your sector exposure in one view", cat:"brokerage", type:"cpc", bid:2.40, ctr:0.004, bl:true,
+  aff:{414:.95,396:.85,118:.45}, ms:{deciding:.9,comparing:.85,learning:.6,"problem-solving":.3,escaping:.1}, tone:{v:.4,a:.4}},
+ {id:"a7", brand:"QuickCash Loans", hl:"Cash today, no questions asked", cat:"payday-loan", type:"cpc", bid:3.00, ctr:0.003, bl:false, pressure:true,
+  aff:{408:.8,396:.1,31:.2}, ms:{deciding:.7,"problem-solving":.8,comparing:.4,learning:.1,escaping:.1}, tone:{v:.6,a:.9}},
+ {id:"a8", brand:"Voltway EV", hl:"The 7-seat electric SUV, test drive today", cat:"auto-maker", type:"cpm", bid:9.5, ctr:0.003, bl:true,
+  aff:{6:.9,22:.95,1:.8,35:.6,666:.3,670:.35}, ms:{comparing:.9,learning:.75,deciding:.7,escaping:.5,"problem-solving":.2}, tone:{v:.6,a:.5}},
+ {id:"a9", brand:"Shieldline Auto Insurance", hl:"Quote your new SUV in 3 minutes", cat:"insurance", type:"cpc", bid:2.10, ctr:0.005, bl:true,
+  aff:{31:.95,1:.5,35:.45,408:.3}, ms:{deciding:.9,comparing:.8,"problem-solving":.6,learning:.4,escaping:.1}, tone:{v:.3,a:.3}},
+ {id:"a10", brand:"Trailhead Gear", hl:"Roof boxes and road-trip kits", cat:"outdoor-retail", type:"cpc", bid:0.80, ctr:0.010, bl:false,
+  aff:{670:.9,666:.8,665:.35,659:.2}, ms:{escaping:.9,deciding:.5,comparing:.4,learning:.3,"problem-solving":.2}, tone:{v:.8,a:.6}},
+ {id:"a11", brand:"MegaMart", hl:"Weekly deals on everyday basics", cat:"general-retail", type:"cpm", bid:1.20, ctr:0.001, bl:false, general:true,
+  aff:{}, ms:{comparing:.3,deciding:.3,learning:.3,escaping:.3,"problem-solving":.3}, tone:{v:.5,a:.5}},
+ {id:"a12", brand:"Brightmind", hl:"Learn a language in 10 minutes a day", cat:"education-app", type:"cpm", bid:1.60, ctr:0.0012, bl:false, general:true,
+  aff:{}, ms:{comparing:.3,deciding:.3,learning:.3,escaping:.3,"problem-solving":.3}, tone:{v:.5,a:.5}}
+];
+
+const CONFLICT_RULES = {"air-incident":{cats:["airline","rail-booking","hotel","insurance"], why:"travel or insurance ad beside an air-incident report"}};
+const STAGES = [
+ {id:"replay", name:"Offline replay"}, {id:"shadow", name:"Shadow mode"}, {id:"ab", name:"A/B test, 5%"},
+ {id:"ramp", name:"Tone test, ramp"}, {id:"deals", name:"Deals and DSPs"}
+];
+const FLAGS = [
+ {id:"slot", label:"Slot topics, keywords and mindset", note:"Sense layer", mo:"must", locked:true, on:true},
+ {id:"guard", label:"Conflict guard (topic and tone rules)", note:"Decide layer, Kano must-be", mo:"must", locked:true, on:true},
+ {id:"fallback", label:"Page-level fallback and score logging", note:"Never a blank slot", mo:"must", locked:true, on:true},
+ {id:"tone", label:"Tone experiment arms", note:"Adds tone fit to relevance (w3 = 0.15)", mo:"should", on:false},
+ {id:"report", label:"Publisher slot revenue report", note:"Shows Priya what each slot earned", mo:"should", on:true},
+ {id:"dsp", label:"Send slot signals to outside DSPs", note:"OpenRTB imp.ext.data, phase 2", mo:"could", on:false},
+ {id:"deal", label:"Relevance-assured news deal", note:"Blocklist buyers opt in, with audit", mo:"could", on:false}
+];
+
+const state = {article:"travel", slot:0, stage:"ab", lambda:0.2, tau:0.4, arm:"ignore", ranker:"linear", flags:Object.fromEntries(FLAGS.map(f=>[f.id,f.on]))};
+
+function slotsOf(a){ return a.blocks.map((b,i)=>b.slot?{...b.slot, idx:i, n:a.blocks.slice(0,i+1).filter(x=>x.slot).length}:null).filter(Boolean); }
+function windowText(a, s){ const prev = a.blocks.slice(Math.max(0,s.idx-1), s.idx+1).map(b=>b.p).join(" "); return prev; }
+function fnv(str){ let h=0x811c9dc5; for(let i=0;i<str.length;i++){h^=str.charCodeAt(i); h=Math.imul(h,0x01000193);} return (h>>>0).toString(16).padStart(8,"0"); }
+const fmt$ = v => "$" + v.toFixed(2);
+const pct = v => (v>=0?"+":"") + (v*100).toFixed(1) + "%";
+
+function weights(){ return state.flags.tone && state.arm!=="ignore" ? {w1:.5,w2:.35,w3:.15} : {w1:.6,w2:.4,w3:0}; }
+function topicSim(ad, topics){ if(ad.general) return .15; return Math.max(0, ...topics.map(t=>ad.aff[t]||0)); }
+function toneFit(ad, slot){ const d=Math.hypot(ad.tone.v-slot.tone.v, ad.tone.a-slot.tone.a)/Math.SQRT2; const m=1-Math.min(1,d); return state.arm==="contrast" ? 1-m : m; }
+function paraTopics(a, i){ const b=a.blocks[i]; return b.slot ? b.slot.topics : [a.label]; }
+function attention(ad, a, slot){
+  const idxs = a.blocks.slice(0, slot.idx+1).map((_,i)=>i);
+  const sims = idxs.map(i=>topicSim(ad, paraTopics(a,i)));
+  const logits = idxs.map((i,k)=>4*sims[k] - 0.8*(slot.idx-i));
+  const mx = Math.max(...logits); const ex = logits.map(l=>Math.exp(l-mx)); const z = ex.reduce((p,q)=>p+q,0);
+  const w = ex.map(e=>e/z);
+  return {idxs, w, sims, ctx: w.reduce((acc,wi,k)=>acc+wi*sims[k],0)};
+}
+const TOPIC_FLOOR = 0.25;
+function topicScore(ad, slot, a){ return (state.ranker==="attention" && a) ? attention(ad,a,slot).ctx : topicSim(ad,slot.topics); }
+function relevance(ad, slot, a){
+  const w=weights();
+  return w.w1*topicScore(ad,slot,a) + w.w2*(ad.ms[slot.mindset]||0) + w.w3*toneFit(ad,slot);
+}
+function pctr(ad, r){ return ad.ctr*(0.4+1.2*r); }
+function ecpm(ad, r){ return ad.type==="cpm" ? ad.bid : ad.bid*pctr(ad,r)*1000; }
+function pageRel(ad, a){ return ad.general ? .15 : (ad.aff[a.label]||0); }
+
+function conflict(ad, slot){
+  for(const s of slot.sens){ const rule=CONFLICT_RULES[s]; if(rule && rule.cats.includes(ad.cat)) return "Blocked: "+rule.why; }
+  if(slot.tone.v<=-0.4 && ad.pressure) return "Blocked: high-pressure offer beside distressing content";
+  if(slot.tone.v<=-0.5 && ad.tone.v>=0.6 && ad.tone.a>=0.6) return "Blocked: upbeat, high-energy creative beside distressing content";
+  return null;
+}
+
+function decideToday(a){
+  const rows = ADS.map(ad=>{
+    const r = pageRel(ad,a);
+    let status = null;
+    if(a.flagged && ad.bl) status = "Out: buyer keyword list flags this page";
+    else if(!ad.general && r<0.3) status = "Out: no match to page label";
+    return {ad, r, e:ecpm(ad,r), status};
+  });
+  const elig = rows.filter(x=>!x.status);
+  elig.sort((x,y)=>y.e-x.e);
+  const win = elig[0] || null;
+  return {win, rows};
+}
+
+function decideMM(a, slot){
+  const today = decideToday(a);
+  if(slot.cache==="miss"){
+    return {win:today.win, rows:today.rows.map(x=>({...x, score:x.e})), src:"page", mode:"miss", rbar:0};
+  }
+  const rows = ADS.map(ad=>{
+    let status=null;
+    if(a.flagged && ad.bl && !state.flags.deal) status="Out: buyer keyword list (no deal)";
+    const c = conflict(ad, slot);
+    if(!status && c) status=c;
+    const topic = topicScore(ad, slot, a);
+    const r = relevance(ad, slot, a);
+    return {ad, r, topic, e:ecpm(ad,r), status};
+  });
+  const guardOK = rows.filter(x=>!x.status);
+  const cand = guardOK.filter(x=>x.topic>=TOPIC_FLOOR && x.r>=state.tau);
+  const maxR = Math.max(0,...guardOK.map(x=>x.r));
+  if(!cand.length){
+    const fb = guardOK.map(x=>({x, pe:ecpm(x.ad, pageRel(x.ad,a))})).filter(o=>o.x.ad.general || pageRel(o.x.ad,a)>=0.3);
+    fb.sort((p,q)=>q.pe-p.pe);
+    const w = fb[0] ? {...fb[0].x, e:fb[0].pe} : null;
+    rows.forEach(x=>{ if(!x.status && (!w || x.ad.id!==w.ad.id)) x.status = x.topic<TOPIC_FLOOR ? "Below topic floor" : "Below relevance bar"; });
+    return {win:w, rows, src:"slot", mode:"fallback", rbar:0, maxR};
+  }
+  const rbar = cand.reduce((t,x)=>t+x.r,0)/cand.length;
+  cand.forEach(x=>{ x.score = x.e*(1+state.lambda*(x.r-rbar)); });
+  cand.sort((x,y)=>y.score-x.score);
+  const win = cand[0];
+  cand.slice(1).forEach(x=>{ x.status = "Lost on score"; });
+  guardOK.filter(x=>!cand.includes(x)).forEach(x=>{ x.status = x.topic<TOPIC_FLOOR ? "Below topic floor" : "Below relevance bar"; });
+  return {win, rows, src:"slot", mode:"ranked", rbar, maxR};
+}
+
+function stageServes(){ return ["ab","ramp","deals"].includes(state.stage); }
+
+/* ---------- render ---------- */
+const $ = id => document.getElementById(id);
+function el(tag, attrs={}, html=""){ const e=document.createElement(tag); for(const k in attrs){ if(k==="class") e.className=attrs[k]; else e.setAttribute(k,attrs[k]); } if(html) e.innerHTML=html; return e; }
+const esc = s => String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));
+
+function renderStages(){
+  const box=$("stages"); box.innerHTML="";
+  STAGES.forEach((s,i)=>{ const b=el("button",{type:"button","aria-pressed":String(state.stage===s.id)}, (i+1)+". "+esc(s.name)); b.onclick=()=>{state.stage=s.id; render();}; box.append(b); });
+}
+function renderArticles(){
+  const box=$("articles"); box.innerHTML="";
+  ARTICLES.forEach(a=>{ const b=el("button",{type:"button","aria-pressed":String(state.article===a.id)}, esc(a.tab)); b.onclick=()=>{state.article=a.id; state.slot=0; render();}; box.append(b); });
+}
+function renderFlags(){
+  const box=$("flags"); box.innerHTML="";
+  FLAGS.forEach(f=>{
+    const row=el("div",{class:"flag"});
+    const cb=el("input",{type:"checkbox",id:"f-"+f.id}); cb.checked=!!state.flags[f.id]; if(f.locked) cb.disabled=true;
+    cb.onchange=()=>{state.flags[f.id]=cb.checked; render();};
+    const lab=el("label",{for:"f-"+f.id}, esc(f.label)+"<small>"+esc(f.note)+(f.locked?" · always on in MVP":"")+"</small>");
+    const tg=el("span",{class:"tag "+f.mo}, f.mo==="must"?"Must":f.mo==="should"?"Should":"Could");
+    row.append(cb,lab,tg); box.append(row);
+  });
+}
+
+function adCard(kind, w, extra){
+  if(!w) return `<div class="adcard ${kind} none">No eligible ad. Slot stays with house or backfill.</div>`;
+  return `<div class="adcard ${kind}"><div class="who"><span>Ad · ${esc(w.ad.brand)}</span><span class="mono">${fmt$(w.e)} eCPM</span></div><div class="hl">${esc(w.ad.hl)}</div><div class="why">${extra}</div></div>`;
+}
+
+function renderArticle(){
+  const a = ARTICLES.find(x=>x.id===state.article);
+  $("pagelabel").textContent = a.label+" · "+IAB[a.label] + (a.flagged ? " (flagged by buyer keyword lists)" : "");
+  const art=$("article"); art.innerHTML="";
+  art.append(el("div",{class:"kicker"}, `<span>${esc(a.section)}</span><span>·</span><span class="mono">${a.words.toLocaleString()} words</span><span>·</span><span>Fictional sample article</span>${a.flagged?'<span class="pill warn">Keyword lists flag this page</span>':''}`));
+  art.append(el("h2",{}, esc(a.title)));
+  const today = decideToday(a);
+  const slots = slotsOf(a);
+  let hl = null;
+  if(state.ranker==="attention"){
+    const ss = slotsOf(a)[state.slot]; const mmSel = decideMM(a, ss);
+    if(mmSel.win && mmSel.src==="slot"){ const at = attention(mmSel.win.ad, a, ss); hl = {}; at.idxs.forEach((i,k)=>hl[i]=at.w[k]); }
+  }
+  a.blocks.forEach((b,i)=>{
+    const pe = el("p",{class:"para"}, esc(b.p));
+    if(hl && hl[i]!==undefined){ pe.style.background = `color-mix(in srgb, var(--accent) ${Math.round(hl[i]*45)}%, transparent)`; pe.style.boxShadow = `-8px 0 0 color-mix(in srgb, var(--accent) ${Math.round(hl[i]*45)}%, transparent)`; pe.title = "Attention weight for the selected slot: "+Math.round(hl[i]*100)+"%"; }
+    art.append(pe);
+    if(!b.slot) return;
+    const s = slots.find(x=>x.idx===i);
+    const k = slots.indexOf(s);
+    const mm = decideMM(a, s);
+    const btn = el("button",{type:"button",class:"slot","aria-pressed":String(state.slot===k),"aria-label":"Inspect ad slot "+(k+1)});
+    let pill;
+    if(mm.mode==="miss") pill='<span class="pill warn">Cache miss · page label used</span>';
+    else if(mm.mode==="fallback") pill='<span class="pill flat">Fallback · below &tau;</span>';
+    else if(!stageServes()) pill='<span class="pill flat">'+(state.stage==="replay"?"Replay only":"Shadow · logged, not served")+'</span>';
+    else pill='<span class="pill good">Served'+(state.stage==="ab"?" in treatment":"")+'</span>';
+    const mmWhy = mm.mode==="miss" ? "Text queued for classification; next request gets slot signals."
+      : mm.mode==="fallback" ? `No ad reached the bar (best r ${mm.maxR.toFixed(2)}), so today's page-level choice is kept.`
+      : `r ${mm.win.r.toFixed(2)} · ${esc(s.mindset)} · ${esc(short(s.topics[0]))}`;
+    const todayWhy = today.win ? `Page label "${esc(short(a.label))}" · same choice for every slot` : "";
+    btn.innerHTML = `<div class="slot-head"><b>Slot ${k+1}</b><span>in-content 300×250</span><span>·</span><span>mindset: ${esc(s.mindset)}</span><span>·</span><span>${esc(short(s.topics[0]))}</span>${s.sens.length?'<span class="pill bad">sensitive: '+esc(s.sens.join(", "))+'</span>':''}<span style="margin-left:auto">${pill}</span></div>
+      <div class="pair">${adCard("today", today.win, "Today · "+todayWhy)}${adCard("mm", mm.win, "Moment Match · "+mmWhy)}</div>`;
+    btn.onclick=()=>{state.slot=k; render();};
+    art.append(btn);
+  });
+}
+
+function tonePlot(t){
+  const x=60+t.v*48, y=60-t.a*48;
+  return `<svg width="120" height="120" viewBox="0 0 120 120" role="img" aria-label="Tone: valence ${t.v}, arousal ${t.a}">
+    <rect x="8" y="8" width="104" height="104" rx="6" fill="none" stroke="var(--line)"/>
+    <line x1="60" y1="8" x2="60" y2="112" stroke="var(--line)"/><line x1="8" y1="60" x2="112" y2="60" stroke="var(--line)"/>
+    <text x="110" y="74" text-anchor="end" font-size="9" fill="var(--muted)">positive</text><text x="12" y="74" font-size="9" fill="var(--muted)">negative</text>
+    <text x="64" y="18" font-size="9" fill="var(--muted)">intense</text><text x="64" y="108" font-size="9" fill="var(--muted)">calm</text>
+    <circle cx="${x}" cy="${y}" r="6" fill="var(--accent)" stroke="var(--surface)" stroke-width="2"/></svg>`;
+}
+
+function bidRequest(a, s, k, mm){
+  const req = {
+    id:"req-"+fnv(a.url).slice(0,6),
+    imp:[{ id:String(k+1), tagid:"article-incontent-"+(k+1), banner:{w:300,h:250}, bidfloor:0.50, bidfloorcur:"USD" }],
+    site:{ page:a.url, content:{ cat:[String(a.label)], cattax:9, language:"en" } },
+    regs:{ ext:{ gdpr:0 } },
+    tmax:300
+  };
+  if(state.flags.dsp){
+    req.imp[0].ext = { data:{ mm:{
+      cattax:9, cat:(mm.src==="slot"? s.topics : [a.label]).map(String),
+      mindset: mm.src==="slot"? s.mindset : null,
+      tone: mm.src==="slot"? {valence:s.tone.v, arousal:s.tone.a} : null,
+      pq: mm.src==="slot"? s.pq : null, sens: mm.src==="slot"? s.sens : [],
+      src: mm.src, ver:"mm-0.1"
+    } } };
+  }
+  return JSON.stringify(req, null, 2);
+}
+
+function renderInspector(){
+  const a = ARTICLES.find(x=>x.id===state.article);
+  const slots = slotsOf(a); const s = slots[state.slot]; const k=state.slot;
+  const mm = decideMM(a, s);
+  const w = weights();
+  const ins=$("inspector"); ins.innerHTML="";
+  const text = windowText(a,s);
+  ins.append(el("div",{}, `<h3>Slot ${k+1} inspector <span class="pill acc">${esc(a.tab)}</span></h3><div class="muted" style="font-size:12px;margin-top:2px">Click another slot in the article to inspect it.</div>`));
+
+  const sense = el("section",{class:"layer"});
+  sense.innerHTML = `<h3>1. Sense <span class="tag must">Must</span><span class="muted" style="font-weight:400;font-size:12px">Kano: performance</span></h3>
+    <div class="window">${esc(text)}</div>
+    <dl class="kv">
+      <dt>Text hash</dt><dd class="mono">${fnv(text)} · ${text.split(/\s+/).length} words</dd>
+      <dt>Context cache</dt><dd>${s.cache==="hit"?'<span class="pill good">Hit</span> slot signals returned in-line':'<span class="pill warn">Miss</span> page label used now, text queued'}</dd>
+      <dt>Topics (IAB 3.1)</dt><dd>${s.topics.map(t=>`<div><span class="mono">${t}</span> ${esc(IAB[t])}</div>`).join("")}</dd>
+      <dt>Keyword query</dt><dd class="mono">${esc(s.pq)}</dd>
+      <dt>Mindset</dt><dd><span class="pill acc">${esc(s.mindset)}</span></dd>
+      <dt>Sensitive flags</dt><dd>${s.sens.length? s.sens.map(x=>`<span class="pill bad">${esc(x)}</span>`).join(" "):'<span class="muted">none</span>'}</dd>
+    </dl>
+    <div class="toneplot">${tonePlot(s.tone)}<div style="font-size:12.5px"><b>Content tone</b><br>valence <span class="mono">${s.tone.v.toFixed(1)}</span>, arousal <span class="mono">${s.tone.a.toFixed(1)}</span><br><span class="muted">Read from the text only. The reader's own mood is never inferred.</span></div></div>`;
+  ins.append(sense);
+
+  const dec = el("section",{class:"layer"});
+  const rows = [...mm.rows].sort((x,y)=>(x.status?1:0)-(y.status?1:0) || (y.score||y.e)-(x.score||x.e));
+  const modeNote = mm.mode==="miss" ? '<span class="pill warn">Cache miss: page-level ranking, as today</span>'
+    : mm.mode==="fallback" ? `<span class="pill flat">Fallback: best r ${mm.maxR.toFixed(2)} &lt; &tau; ${state.tau.toFixed(2)}</span>`
+    : `<span class="pill good">Ranked on slot signals · mean r ${mm.rbar.toFixed(2)}</span>`;
+  dec.innerHTML = `<h3>2. Decide <span class="tag must">Must</span><span class="muted" style="font-weight:400;font-size:12px">Kano: must-be guard, performance score</span></h3>
+    <div class="formula">${state.ranker==="attention" ? "topic = Σ attention(ad, paragraph) × similarity, recency-decayed<br>" : ""}r = ${w.w1}·topic + ${w.w2}·mindset + ${w.w3}·tone${state.flags.tone && state.arm!=="ignore" ? " ("+state.arm+")" : ""}<br>score = eCPM × (1 + ${state.lambda.toFixed(2)} × (r − mean r))</div>
+    <div>${modeNote}</div>
+    <div class="tbl-wrap"><table><thead><tr><th>Ad</th><th class="num">r</th><th class="num">eCPM</th><th class="num">Score</th><th>Status</th></tr></thead><tbody>
+    ${rows.map(x=>{ const isWin = mm.win && x.ad.id===mm.win.ad.id; const st = isWin ? '<span class="pill good">Won</span>' : x.status ? (x.status.startsWith("Blocked")?'<span class="pill bad">'+esc(x.status)+'</span>':esc(x.status)) : "";
+      return `<tr class="${isWin?"win":x.status?"out":""}"><td>${esc(x.ad.brand)}<div class="muted" style="font-size:11px">${esc(x.ad.cat)} · ${x.ad.type.toUpperCase()}${x.ad.bl?" · keyword list":""}</div></td><td class="num">${x.r.toFixed(2)}</td><td class="num">${x.e.toFixed(2)}</td><td class="num">${x.score!==undefined?x.score.toFixed(2):"n/a"}</td><td>${st}</td></tr>`; }).join("")}
+    </tbody></table></div>`;
+  ins.append(dec);
+
+  if(state.ranker==="attention" && mm.win && mm.src==="slot"){
+    const at = attention(mm.win.ad, a, s);
+    const att = el("section",{class:"layer"});
+    att.innerHTML = `<h3>Attention over paragraphs read so far <span class="tag could">Phase 2</span></h3>
+      <div class="muted" style="font-size:12px">Winning ad: ${esc(mm.win.ad.brand)}. Shaded paragraphs in the article show the same weights.</div>
+      ${at.idxs.map((i,k)=>`<div class="attrow"><span class="mono">P${i+1}</span><span class="attbar"><span style="width:${Math.round(at.w[k]*100)}%"></span></span><span class="mono">${Math.round(at.w[k]*100)}%</span><span class="muted atttext">${esc(a.blocks[i].p.split(" ").slice(0,7).join(" "))}…</span></div>`).join("")}
+      <div class="muted" style="font-size:12px">Simulated: weights come from topic similarity with recency decay, standing in for a trained DIN-style model. They show the most related paragraph, not proof of cause.</div>`;
+    ins.append(att);
+  }
+
+  const prove = el("section",{class:"layer"});
+  const req = bidRequest(a,s,k,mm);
+  const log = {slot:k+1, url_hash:fnv(a.url), text_hash:fnv(text), src:mm.src, mode:mm.mode, winner:mm.win?mm.win.ad.id:null, r:mm.win?+mm.win.r.toFixed(3):null, lambda:state.lambda, tau:state.tau, arm:state.flags.tone?state.arm:"off", ranker:state.ranker, stage:state.stage};
+  prove.innerHTML = `<h3>3. Prove <span class="tag should">Should / Could</span><span class="muted" style="font-weight:400;font-size:12px">Kano: delighter</span></h3>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:12.5px">Decision log line (every impression)</b><button class="copy" type="button" data-copy="log">Copy</button></div>
+    <pre id="log-pre">${esc(JSON.stringify(log))}</pre>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><b style="font-size:12.5px">OpenRTB 2.6 bid request to outside DSPs</b><button class="copy" type="button" data-copy="req">Copy</button></div>
+    <div class="muted" style="font-size:12px">${state.flags.dsp ? "Could flag on: slot signals ride in imp[].ext.data (Prebid ortb2Imp.ext.data). cattax 9 = Content Taxonomy 3.1." : "Could flag off: outside DSPs get today's page-level fields only. Turn on \"Send slot signals to outside DSPs\" to see imp[].ext.data."}</div>
+    <pre id="req-pre">${esc(req)}</pre>`;
+  ins.append(prove);
+  prove.querySelectorAll(".copy").forEach(b=>b.onclick=async()=>{ const t = b.dataset.copy==="req" ? req : JSON.stringify(log); try{ await navigator.clipboard.writeText(t); b.textContent="Copied"; }catch(e){ b.textContent="Select and copy"; } setTimeout(()=>b.textContent="Copy",1500); });
+}
+
+function pageStats(a){
+  const today = decideToday(a); const slots = slotsOf(a);
+  let rT=0, rM=0, cT=0, cM=0, cov=0, clashT=0, rec=0; const advT=new Set(), advM=new Set();
+  slots.forEach(s=>{
+    const m = decideMM(a,s);
+    if(today.win){ rT+=today.win.e; cT+=pctr(today.win.ad, today.win.r); advT.add(today.win.ad.brand); if(conflict(today.win.ad,s)) clashT++; }
+    if(m.win){ rM+=m.win.e; cM+=pctr(m.win.ad, m.src==="slot"? m.win.r : pageRel(m.win.ad,a)); advM.add(m.win.ad.brand); if(a.flagged && m.win.ad.bl) rec++; }
+    if(m.src==="slot") cov++;
+  });
+  const n=slots.length;
+  return {n, rT, rM, ctrT:cT/n, ctrM:cM/n, advT:advT.size, advM:advM.size, cov, clashT, rec};
+}
+
+function renderKPIs(){
+  const a = ARTICLES.find(x=>x.id===state.article); const st = pageStats(a);
+  const lift = st.rT>0 ? (st.rM-st.rT)/st.rT : 0;
+  const k=$("kpis"); k.innerHTML="";
+  const tile=(lbl,val,sub)=>{ const d=el("div",{class:"card kpi"}); d.innerHTML=`<div class="lbl">${lbl}</div><div class="val">${val}</div><div class="sub">${sub}</div>`; k.append(d); };
+  tile("Page RPM, this article", `${fmt$(st.rM)}`, `today ${fmt$(st.rT)} · <b style="color:${lift>=0?'var(--good)':'var(--bad)'}">${st.rT>0?pct(lift):"n/a"}</b>`);
+  tile("Avg. est. CTR per slot", `${(st.ctrM*100).toFixed(2)}%`, `today ${(st.ctrT*100).toFixed(2)}%`);
+  tile("Unique advertisers on page", `${st.advM}`, `today ${st.advT} (same ad in every slot)`);
+  tile("Slot signal coverage", `${st.cov}/${st.n}`, `cache misses fall back to the page label`);
+  tile("Blocked-page slots recovered", a.flagged ? `${st.rec}/${st.n}` : "n/a", a.flagged ? (state.flags.deal ? "blocklist buyers back via the news deal" : "turn on the news deal flag") : "this page is not flagged by keyword lists");
+  if(state.flags.report){
+    const slots = slotsOf(a); const today = decideToday(a);
+    const d=el("div",{class:"card kpi",style:"grid-column:1/-1"});
+    d.innerHTML = `<div class="lbl">Publisher slot revenue report <span class="tag should">Should</span></div><div class="tbl-wrap"><table><thead><tr><th>Slot</th><th>Mindset</th><th>Top topic</th><th>Today</th><th class="num">Today eCPM</th><th>Moment Match</th><th class="num">MM eCPM</th></tr></thead><tbody>${slots.map((s,i)=>{const m=decideMM(a,s); return `<tr><td>${i+1}</td><td>${esc(s.mindset)}</td><td>${esc(short(s.topics[0]))}</td><td>${today.win?esc(today.win.ad.brand):"none"}</td><td class="num">${today.win?today.win.e.toFixed(2):"n/a"}</td><td>${m.win?esc(m.win.ad.brand):"none"}${m.mode!=="ranked"?' <span class="muted">('+m.mode+')</span>':''}</td><td class="num">${m.win?m.win.e.toFixed(2):"n/a"}</td></tr>`;}).join("")}</tbody></table></div>`;
+    k.append(d);
+  }
+}
+
+function metricRow(name, value, target, pass){
+  const p = pass===null ? '<span class="pill flat">Pending</span>' : pass ? '<span class="pill good">Pass</span>' : '<span class="pill bad">Fail</span>';
+  return `<div class="mrow"><span>${name}<div class="muted" style="font-size:11.5px">target: ${target}</div></span><span class="mono">${value}</span>${p}</div>`;
+}
+
+function renderReadout(){
+  const r=$("readout");
+  const all = ARTICLES.map(a=>({a, st:pageStats(a), slots:slotsOf(a)}));
+  const totT = all.reduce((s,x)=>s+x.st.rT,0), totM = all.reduce((s,x)=>s+x.st.rM,0);
+  const nSlots = all.reduce((s,x)=>s+x.slots.length,0);
+  const differ = all.reduce((s,x)=>s+x.slots.filter(sl=>sl.topics[0]!==x.a.label).length,0);
+  const cov = all.reduce((s,x)=>s+x.st.cov,0);
+  const news = all.find(x=>x.a.id==="news");
+  const stage = STAGES.find(s=>s.id===state.stage);
+  let body="", gate="";
+  if(state.stage==="replay"){
+    const lift=(totM-totT)/totT;
+    body = `<div class="groups"><div class="group"><h3>Replay on the 3 sample pages (computed live)</h3>
+      ${metricRow("Slots whose top topic differs from the page label", `${differ}/${nSlots}`, "a material share", differ/nSlots>=0.3)}
+      ${metricRow("Replay RPM change vs. page-level ranking", pct(lift), "above 0%", lift>0)}
+      </div></div>`;
+    gate = (differ/nSlots>=0.3 && lift>0) ? "Gate 1 passes: move to shadow mode." : "Gate 1 not met: tune signals before shadow mode.";
+  } else if(state.stage==="shadow"){
+    body = `<div class="groups"><div class="group"><h3>Shadow mode: signals computed, not served</h3>
+      ${metricRow("Slot signal coverage (sample pages, computed)", `${Math.round(cov/nSlots*100)}%`, "80% or more", cov/nSlots>=0.8)}
+      ${metricRow("Added p99 latency on the ad request (simulated)", "+7 ms", "10 ms or less", true)}
+      ${metricRow("Severe clashes found in audit sample (simulated)", "0", "zero", true)}
+      </div></div>`;
+    gate = "Gate 2 passes: start the 5% A/B test.";
+  } else if(state.stage==="ab"){
+    body = `<div class="groups">
+      <div class="group"><h3>North Star</h3>${metricRow("Long-form RPM, treatment vs. control", "+6.1% (95% CI +2.4% to +9.8%)", "rise at 95% confidence; MDE 5%", true)}</div>
+      <div class="group"><h3>Input metrics</h3>
+        ${metricRow("In-content CTR", "+11.8%", "up vs. control", true)}
+        ${metricRow("Conversion rate (reporting advertisers)", "+6.9%", "up vs. control", true)}
+        ${metricRow("Unique advertisers per pageview", "+1.7", "up vs. control", true)}</div>
+      <div class="group"><h3>Guardrails</h3>
+        ${metricRow("Fill rate", "−0.2 pts", "drop of 0.5 pts or less", true)}
+        ${metricRow("Added p99 latency", "+7 ms", "10 ms or less", true)}
+        ${metricRow("Core Web Vitals (LCP, CLS)", "no change", "no regression", true)}
+        ${metricRow("Model cost vs. RPM gain", "9%", "under 20%", true)}
+        ${metricRow("Severe clash incidents", "0", "zero", true)}</div></div>`;
+    gate = "Gate 3 passes: ramp to 25%, then 50%, then 100%, and start the tone test.";
+  } else if(state.stage==="ramp"){
+    body = `<div class="groups"><div class="group"><h3>Tone experiment: CTR index vs. ignore-tone arm</h3>
+      ${metricRow("Match slot tone", "101 (CI 97 to 105)", "CI above 100", false)}
+      ${metricRow("Contrast slot tone", "104 (CI 100 to 108)", "CI above 100", null)}
+      ${metricRow("Ignore tone (control)", "100", "baseline", true)}
+      </div><div class="group"><h3>Reading the result</h3><div style="font-size:13px">Published evidence points both ways, so the test is split by category and tone. A winning direction in one category hands over to a contextual bandit there; elsewhere tone stays a guardrail only.</div></div></div>`;
+    gate = "Gate 4 pending: tone direction not settled in every category; third-party audit scheduled.";
+  } else {
+    const rec = news.st.rec;
+    body = `<div class="groups"><div class="group"><h3>News pilot and outside DSPs</h3>
+      ${metricRow("Recovered impressions on the news sample page (computed)", `${rec} of ${news.slots.length} slots`, "grows each month", state.flags.deal ? rec>0 : null)}
+      ${metricRow("Clash incidents in deal inventory", "0", "zero", true)}
+      ${metricRow("Third-party audit of relevance scores (IAS or DV)", "in progress", "passed before assured pricing", null)}
+      </div><div class="group"><h3>What to try</h3><div style="font-size:13px">Open the Breaking news article and turn on the Could flag "Relevance-assured news deal". Blocklist buyers return on safe slots while the guard still blocks the incident paragraph. Turn on "Send slot signals to outside DSPs" to see the OpenRTB payload.</div></div></div>`;
+    gate = state.flags.deal ? "Deal live in pilot: assured pricing waits for the audit." : "Deal flag is off: blocklist buyers still skip the news page.";
+  }
+  r.innerHTML = `<h2>Experiment readout · ${esc(stage.name)} <span class="pill warn">Simulated readout</span></h2>${body}<div class="gate"><span class="pill acc">Gate decision</span><span>${esc(gate)}</span></div>${state.ranker==="attention" ? '<div class="gate"><span class="pill warn">Phase-2 ranker on</span><span>The attention ranker runs in shadow first and ships only after it beats the linear score in its own A/B test.</span></div>' : ''}`;
+}
+
+function render(){
+  $("lambda").value=state.lambda; $("lambda-out").textContent=state.lambda.toFixed(2);
+  $("tau").value=state.tau; $("tau-out").textContent=state.tau.toFixed(2);
+  $("arm").value=state.arm; $("arm").disabled=!state.flags.tone; $("ranker").value=state.ranker;
+  $("arm-note").textContent = state.flags.tone ? "Tone weight w3 = 0.15 while an arm other than control is picked." : "Turn on the Should flag \"Tone experiment arms\" to use this.";
+  renderStages(); renderArticles(); renderFlags(); renderArticle(); renderInspector(); renderKPIs(); renderReadout();
+}
+$("lambda").oninput=e=>{state.lambda=+(+e.target.value).toFixed(2); render();};
+$("tau").oninput=e=>{state.tau=+(+e.target.value).toFixed(2); render();};
+$("arm").onchange=e=>{state.arm=e.target.value; render();};
+$("ranker").onchange=e=>{state.ranker=e.target.value; render();};
+render();
+</script>
+</body>
+</html>
