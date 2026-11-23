@@ -168,7 +168,7 @@ footer{font-size:12px;color:var(--muted);display:grid;gap:4px}
       <div class="slider">
         <label for="tau">Relevance bar &tau;</label><span class="mono" id="tau-out"></span>
         <input type="range" id="tau" min="0" max="0.8" step="0.05" value="0.4">
-        <small>Ads below &tau; (or below a 0.25 topic match) are not ranked. If none qualify, the slot falls back to today's page-level choice.</small>
+        <small>Ads below &tau;, or below a 0.25 topic match with the paragraph above the slot, are not ranked. If none qualify, the slot falls back to today's page-level choice.</small>
       </div>
       <div class="slider">
         <label for="ranker">Ranker</label><span></span>
@@ -176,7 +176,7 @@ footer{font-size:12px;color:var(--muted);display:grid;gap:4px}
           <option value="linear">Linear score (MVP)</option>
           <option value="attention">Slot-target attention (phase 2, simulated)</option>
         </select>
-        <small id="ranker-note">Phase 2: each candidate ad attends over every paragraph read so far, DIN-style.</small>
+        <small id="ranker-note">Phase 2: each candidate ad attends over every paragraph read so far, DIN-style. Earlier paragraphs add context but cannot replace the topic match above the slot.</small>
       </div>
       <div class="slider" style="margin-bottom:0">
         <label for="arm">Tone experiment arm</label><span></span>
@@ -289,7 +289,8 @@ const ADS = [
   aff:{}, ms:{comparing:.3,deciding:.3,learning:.3,escaping:.3,"problem-solving":.3}, tone:{v:.5,a:.5}}
 ];
 
-const CONFLICT_RULES = {"air-incident":{cats:["airline","rail-booking","hotel","insurance"], why:"travel or insurance ad beside an air-incident report"}};
+const CONFLICT_RULES = {"air-incident":{cats:["airline","rail-booking","hotel","insurance"], why:"travel or insurance ad beside an air-incident report",
+  pageCats:["airline"], pageWhy:"airline ad anywhere on a page reporting an air incident"}};
 const STAGES = [
  {id:"replay", name:"Offline replay"}, {id:"shadow", name:"Shadow mode"}, {id:"ab", name:"A/B test, 5%"},
  {id:"ramp", name:"Tone test, ramp"}, {id:"deals", name:"Deals and DSPs"}
@@ -334,8 +335,10 @@ function pctr(ad, r){ return ad.ctr*(0.4+1.2*r); }
 function ecpm(ad, r){ return ad.type==="cpm" ? ad.bid : ad.bid*pctr(ad,r)*1000; }
 function pageRel(ad, a){ return ad.general ? .15 : (ad.aff[a.label]||0); }
 
-function conflict(ad, slot){
+function pageSens(a){ return [...new Set(a.blocks.filter(b=>b.slot).flatMap(b=>b.slot.sens))]; }
+function conflict(ad, slot, a){
   for(const s of slot.sens){ const rule=CONFLICT_RULES[s]; if(rule && rule.cats.includes(ad.cat)) return "Blocked: "+rule.why; }
+  if(a) for(const s of pageSens(a)){ const rule=CONFLICT_RULES[s]; if(rule && rule.pageCats && rule.pageCats.includes(ad.cat)) return "Blocked: "+rule.pageWhy; }
   if(slot.tone.v<=-0.4 && ad.pressure) return "Blocked: high-pressure offer beside distressing content";
   if(slot.tone.v<=-0.5 && ad.tone.v>=0.6 && ad.tone.a>=0.6) return "Blocked: upbeat, high-energy creative beside distressing content";
   return null;
@@ -363,9 +366,9 @@ function decideMM(a, slot){
   const rows = ADS.map(ad=>{
     let status=null;
     if(a.flagged && ad.bl && !state.flags.deal) status="Out: buyer keyword list (no deal)";
-    const c = conflict(ad, slot);
+    const c = conflict(ad, slot, a);
     if(!status && c) status=c;
-    const topic = topicScore(ad, slot, a);
+    const topic = topicSim(ad, slot.topics); /* floor is checked on the paragraph above the slot, in both rankers */
     const r = relevance(ad, slot, a);
     return {ad, r, topic, e:ecpm(ad,r), status};
   });
@@ -553,7 +556,7 @@ function pageStats(a){
   let rT=0, rM=0, cT=0, cM=0, cov=0, clashT=0, rec=0; const advT=new Set(), advM=new Set();
   slots.forEach(s=>{
     const m = decideMM(a,s);
-    if(today.win){ rT+=today.win.e; cT+=pctr(today.win.ad, today.win.r); advT.add(today.win.ad.brand); if(conflict(today.win.ad,s)) clashT++; }
+    if(today.win){ rT+=today.win.e; cT+=pctr(today.win.ad, today.win.r); advT.add(today.win.ad.brand); if(conflict(today.win.ad,s,a)) clashT++; }
     if(m.win){ rM+=m.win.e; cM+=pctr(m.win.ad, m.src==="slot"? m.win.r : pageRel(m.win.ad,a)); advM.add(m.win.ad.brand); if(a.flagged && m.win.ad.bl) rec++; }
     if(m.src==="slot") cov++;
   });
@@ -610,7 +613,7 @@ function renderReadout(){
     gate = "Gate 2 passes: start the 5% A/B test.";
   } else if(state.stage==="ab"){
     body = `<div class="groups">
-      <div class="group"><h3>North Star</h3>${metricRow("Long-form RPM, treatment vs. control", "+6.1% (95% CI +2.4% to +9.8%)", "rise at 95% confidence; MDE 5%", true)}</div>
+      <div class="group"><h3>North Star</h3>${metricRow("Long-form RPM, treatment vs. control", "+6.1% (95% CI +2.4% to +9.8%)", "rise at 95% confidence; MDE 5%", true)}<div class="muted" style="font-size:11.5px;margin-top:6px">Sample size: about 157,000 pageviews per arm for a 5% MDE (alpha 0.05, power 80%, per-pageview revenue CV of 5 assumed). Two weeks covers weekly cycles.</div></div>
       <div class="group"><h3>Input metrics</h3>
         ${metricRow("In-content CTR", "+11.8%", "up vs. control", true)}
         ${metricRow("Conversion rate (reporting advertisers)", "+6.9%", "up vs. control", true)}
